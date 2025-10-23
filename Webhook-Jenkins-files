@@ -1,0 +1,87 @@
+pipeline {
+   agent {
+        label 'git'
+    }
+
+    tools {
+        maven "Maven"
+        jdk "Java-21"
+    }
+
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                echo "Cleaning Workspace......"
+                deleteDir()
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                git branch: "main", url: 'https://github.com/aadibr/jfrog.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                echo "Compiling Maven project..."
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo "Running Maven tests..."
+                sh 'mvn test'
+            }
+        }
+        //  New Stages for Artifactory Integration
+        stage('Prepare Artifact for Artifactory') {
+            steps {
+                echo "Preparing artifact for upload..."
+                sh 'mkdir -p build/output && cp target/*.war build/output/'
+            }
+        }
+
+        stage('Push WAR to Artifactory') {
+            steps {
+                script {
+                    echo "Uploading WAR file to Artifactory..."
+
+                    // Connect to Artifactory server configured in Jenkins (name: 'JFrog')
+                    def server = Artifactory.server('JFrog')
+
+                    // Upload specification
+                    def uploadSpec = """{
+                        "files": [
+                            {
+                                "pattern": "build/output/*.war",
+                                "target": "maven-snapshots/"
+                            }
+                        ]
+                    }"""
+
+                    // Execute upload
+                    server.upload(uploadSpec)
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo " BUILD, TEST & UPLOAD SUCCESSFUL...!!!"
+            junit allowEmptyResults: true, testResults: '/target/surefire-reports/*.xml'
+            archiveArtifacts artifacts: 'target/*.war', onlyIfSuccessful: true
+        }
+
+        failure {
+            echo " Failure..!!!"
+           
+        }
+
+        always {
+            echo " You executed the build !!!"
+        }
+    }
+}
