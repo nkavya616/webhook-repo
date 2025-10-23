@@ -81,7 +81,7 @@ pipeline {
         }
 
         always {
-            echo " You executed the build !!!!!"
+            echo " You executed the build !!!"
         }
     }
 }
